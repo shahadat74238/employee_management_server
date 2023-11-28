@@ -32,6 +32,10 @@ async function run() {
       .db("employee_management")
       .collection("users");
 
+    const worksCollection = client
+      .db("employee_management")
+      .collection("works");
+
     // ----------- MiddleWare ----------
     //  verifyToken
     const verifyToken = (req, res, next) => {
@@ -107,9 +111,22 @@ async function run() {
     app.get("/api/v1/user", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
-      const result = await usersCollection.findOne(query);
+      const result = await usersCollection.findOne(query);  
       res.send(result);
     });
+
+    // -------------- work sheet related api ------------
+    app.post("/api/v1/works", async (req, res) => {
+      const work = req.body;
+      const result = await worksCollection.insertOne(work);
+      res.send(result);
+    });
+
+    app.get("/api/v1/works",verifyToken, async(req, res) => {
+      const result = await worksCollection.find().toArray();
+      res.send(result);
+    });
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
