@@ -4,42 +4,28 @@ const app = express();
 require("dotenv").config();
 var cors = require("cors");
 var jwt = require("jsonwebtoken");
-const { ObjectId } = require("mongoose");
+const mongoose = require("mongoose");
+const { User } = require("./schema/user.models");
+const { Testimonials } = require("./schema/testimonials.model");
+const { Works } = require("./schema/workSheet.model");
+
 const port = process.env.PORT || 3003;
 
 // ----------- Middle Ware ----------
 app.use(cors());
 app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cxghft2.mongodb.net/?retryWrites=true&w=majority`;
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cxghft2.mongodb.net/employee_management?retryWrites=true&w=majority`;
 
 async function run() {
   try {
-    const testimonialsCollection = client
-      .db("employee_management")
-      .collection("testimonials");
-
-    const usersCollection = client
-      .db("employee_management")
-      .collection("users");
-
-    const worksCollection = client
-      .db("employee_management")
-      .collection("works");
+    // connect mongoose.
+    await mongoose.connect(uri);
 
     // ----------- MiddleWare ----------
+
     //  verifyToken
     const verifyToken = (req, res, next) => {
-      // console.log("inside verify token", req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "Unauthorize Access" });
       }
@@ -60,7 +46,7 @@ async function run() {
         return res.status(403).send({ message: "Unauthorize access" });
       }
       query = { email: email };
-      const user = await usersCollection.findOne(query);
+      const user = await User.findOne(query);
       let admin = false;
       if (user) {
         admin = user?.role === "admin";
@@ -75,7 +61,7 @@ async function run() {
         return res.status(403).send({ message: "Unauthorize access" });
       }
       query = { email: email };
-      const user = await usersCollection.findOne(query);
+      const user = await User.findOne(query);
       let hr = false;
       if (user) {
         hr = user?.role === "hr";
@@ -94,44 +80,86 @@ async function run() {
 
     // ------------ Testimonials Related API -------------------
     app.get("/api/v1/testimonials", async (req, res) => {
-      const result = await testimonialsCollection.find().toArray();
-      res.send(result);
+      const testimonials = await Testimonials.find();
+      res.send(testimonials);
     });
 
     //  ---------------- User Related API ------------------
     app.post("/api/v1/users", async (req, res) => {
       const user = req.body;
-      const result = await usersCollection.insertOne(user);
-      res.send(result);
+      const userSchema = new User(user);
+      await userSchema.save();
+      res.send(userSchema);
     });
+
     app.get("/api/v1/users", verifyToken, async (req, res) => {
-      const result = await usersCollection.find().toArray();
-      res.send(result);
+      const users = await User.find();
+      res.send(users);
     });
+
     app.get("/api/v1/user", verifyToken, async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
-      const result = await usersCollection.findOne(query);  
-      res.send(result);
+      const singleUser = await User.findOne(query);
+      res.send(singleUser);
     });
 
     // -------------- work sheet related api ------------
-    app.post("/api/v1/works", async (req, res) => {
+    app.post("/api/v1/works", verifyToken, async (req, res) => {
       const work = req.body;
-      const result = await worksCollection.insertOne(work);
+      const workSchema = new Works(work);
+      await workSchema.save();
+      res.send(workSchema);
+    });
+
+    app.get("/api/v1/works", verifyToken, async (req, res) => {
+      const works = await Works.find();
+      res.send(works);
+    });
+
+    app.get("/api/v1/userWorks", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const query = { userEmail: email };
+      const works = await Works.find(query);
+      res.send(works);
+    });
+
+    // --------------- Verify User -------------
+    app.patch("/api/v1/verify/:id",verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: id}
+      const updatedDoc = {
+        $set: {
+          isPending: true,
+        },
+      };
+      const result = await User.updateOne(query, updatedDoc);
       res.send(result);
     });
 
-    app.get("/api/v1/works",verifyToken, async(req, res) => {
-      const result = await worksCollection.find().toArray();
+    // --------------- Change Employee Role -------------
+    app.patch("/api/v1/hr/:id",verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: id}
+      const updatedDoc = {
+        $set: {
+          role: "hr",
+        },
+      };
+      const result = await User.updateOne(query, updatedDoc);
+      res.send(result);
+    });
+
+    // --------------- Delete User -------------
+    app.delete("/api/v1/users/:id",verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: id}
+      const result = await User.deleteOne(query);
       res.send(result);
     });
 
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+
   } finally {
   }
 }
