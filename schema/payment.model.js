@@ -1,32 +1,31 @@
 const mongoose = require("mongoose");
 
-const WorksSchema = new mongoose.Schema(
+const PaymentSchema = new mongoose.Schema(
   {
-    name: {
+    month: {
       type: "String",
       required: true,
     },
-    task: {
+    year: {
       type: "String",
       required: true,
     },
-    hoursWorked: {
+    salary: {
+      type: "Number",
+      required: true,
+    },
+    transaction_id: {
       type: "String",
       required: true,
     },
-    date: {
-      type: "string",
+    employee_email:{
+      type: "String",
       required: true,
-    },
-    userEmail: {
-      type: "string",
-      required: true,
-      lowercase: true,
-    },
+    }
   },
   {
     versionKey: false,
   }
 );
 
-exports.Works = mongoose.model("works", WorksSchema);
+exports.Payment = mongoose.model("payment", PaymentSchema);

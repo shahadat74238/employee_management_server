@@ -8,7 +8,8 @@ const mongoose = require("mongoose");
 const { User } = require("./schema/user.models");
 const { Testimonials } = require("./schema/testimonials.model");
 const { Works } = require("./schema/workSheet.model");
-
+const { Payment } = require("./schema/payment.model");
+const stripe = require("stripe")(process.env.STRIPE_SK);
 const port = process.env.PORT || 3003;
 
 // ----------- Middle Ware ----------
@@ -98,9 +99,11 @@ async function run() {
     });
 
     app.get("/api/v1/user", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      const query = { email: email };
+      const employeeEmail = req.query.email;
+      // console.log(employeeEmail, "details Email");
+      const query = { email: employeeEmail };
       const singleUser = await User.findOne(query);
+      // console.log(singleUser);
       res.send(singleUser);
     });
 
@@ -112,8 +115,28 @@ async function run() {
       res.send(workSchema);
     });
 
-    app.get("/api/v1/works", verifyToken, async (req, res) => {
-      const works = await Works.find();
+    app.get("/api/v1/works",verifyToken, async (req, res) => {
+      const data = req.query;
+      let query = {};
+      if (data?.name) {
+        query = {
+          name: data.name,
+        };
+      }
+      const works = await Works.find(query);
+      if (data?.month) {
+        const filterWork = works
+          .map((w) => {
+            if (w.date.startsWith(data.month)) {
+              return w;
+            }
+            else{
+              return null;
+            }
+          })
+          .filter((work) => work !== null);
+          return res.send(filterWork)
+      }
       res.send(works);
     });
 
@@ -124,10 +147,15 @@ async function run() {
       res.send(works);
     });
 
+    app.get("/api/v1/drop",verifyToken, async (req, res) => {
+      const works = await Works.distinct("name");
+      res.send(works);
+    });
+
     // --------------- Verify User -------------
-    app.patch("/api/v1/verify/:id",verifyToken, async (req, res) => {
+    app.patch("/api/v1/verify/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = {_id: id}
+      const query = { _id: id };
       const updatedDoc = {
         $set: {
           isPending: true,
@@ -138,9 +166,9 @@ async function run() {
     });
 
     // --------------- Change Employee Role -------------
-    app.patch("/api/v1/hr/:id",verifyToken, async (req, res) => {
+    app.patch("/api/v1/hr/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = {_id: id}
+      const query = { _id: id };
       const updatedDoc = {
         $set: {
           role: "hr",
@@ -151,11 +179,49 @@ async function run() {
     });
 
     // --------------- Delete User -------------
-    app.delete("/api/v1/users/:id",verifyToken, async (req, res) => {
+    app.delete("/api/v1/users/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
-      const query = {_id: id}
+      const query = { _id: id };
       const result = await User.deleteOne(query);
       res.send(result);
+    });
+
+    // ------------------- Salary Payment Api ---------------
+
+    app.post("/api/v1/paySalary",verifyToken, async(req, res)=>{
+      const work = req.body;
+      // console.log(work);
+      const paySalarySchema = new Payment(work);
+      await paySalarySchema.save();
+      res.send(paySalarySchema);
+    })
+
+    app.get("/api/v1/payment",verifyToken, async (req, res) => {
+      const email = req.query.email;
+      // console.log(email);
+      const query = {employee_email: email}
+      const payment = await Payment.find(query);
+      res.send(payment);
+    });
+
+
+
+    // ------------------------ Payment related Api ------------
+    app.post("/api/v1/create-payment-intent", async (req, res) => {
+      const { paidSalary } = req.body;
+      const amount = parseInt(paidSalary * 100);
+      // console.log(amount, "amount inside the intent");
+      if (amount > 1) {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      }
     });
 
 
