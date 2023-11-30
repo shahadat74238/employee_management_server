@@ -13,16 +13,26 @@ const stripe = require("stripe")(process.env.STRIPE_SK);
 const port = process.env.PORT || 3003;
 
 // ----------- Middle Ware ----------
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://employee-management-1d531.web.app",
+    ],
+  })
+);
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.cxghft2.mongodb.net/employee_management?retryWrites=true&w=majority`;
 
+// connect mongoose.
+const dbConnect = async () => {
+  await mongoose.connect(uri);
+};
+dbConnect();
+
 async function run() {
   try {
-    // connect mongoose.
-    await mongoose.connect(uri);
-
     // ----------- MiddleWare ----------
 
     //  verifyToken
@@ -115,7 +125,7 @@ async function run() {
       res.send(workSchema);
     });
 
-    app.get("/api/v1/works",verifyToken, async (req, res) => {
+    app.get("/api/v1/works", verifyToken, async (req, res) => {
       const data = req.query;
       let query = {};
       if (data?.name) {
@@ -129,13 +139,12 @@ async function run() {
           .map((w) => {
             if (w.date.startsWith(data.month)) {
               return w;
-            }
-            else{
+            } else {
               return null;
             }
           })
           .filter((work) => work !== null);
-          return res.send(filterWork)
+        return res.send(filterWork);
       }
       res.send(works);
     });
@@ -147,7 +156,7 @@ async function run() {
       res.send(works);
     });
 
-    app.get("/api/v1/drop",verifyToken, async (req, res) => {
+    app.get("/api/v1/drop", verifyToken, async (req, res) => {
       const works = await Works.distinct("name");
       res.send(works);
     });
@@ -188,23 +197,21 @@ async function run() {
 
     // ------------------- Salary Payment Api ---------------
 
-    app.post("/api/v1/paySalary",verifyToken, async(req, res)=>{
+    app.post("/api/v1/paySalary", verifyToken, async (req, res) => {
       const work = req.body;
       // console.log(work);
       const paySalarySchema = new Payment(work);
       await paySalarySchema.save();
       res.send(paySalarySchema);
-    })
+    });
 
-    app.get("/api/v1/payment",verifyToken, async (req, res) => {
+    app.get("/api/v1/payment", verifyToken, async (req, res) => {
       const email = req.query.email;
       // console.log(email);
-      const query = {employee_email: email}
+      const query = { employee_email: email };
       const payment = await Payment.find(query);
       res.send(payment);
     });
-
-
 
     // ------------------------ Payment related Api ------------
     app.post("/api/v1/create-payment-intent", async (req, res) => {
@@ -223,9 +230,6 @@ async function run() {
         });
       }
     });
-
-
-
   } finally {
   }
 }
